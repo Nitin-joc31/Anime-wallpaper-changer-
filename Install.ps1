@@ -1,6 +1,6 @@
 # WallDrop Installer & Launcher
 # Run this ONCE with: Right-click → Run with PowerShell
-# After this, WallDrop runs with no SmartScreen, no Python needed check, nothing.
+# Python must remain installed for the app and its scheduled task to run.
 
 $ErrorActionPreference = "Stop"
 $AppName = "WallDrop"
@@ -39,16 +39,14 @@ if (-not $python) {
     exit 1
 }
 
-# ── 2. Copy app to AppData (no UAC needed, no SmartScreen) ──────────────────
+# ── 2. Copy app to AppData (no UAC needed) ──────────────────────────────────
 Write-Host "  [2/4] Installing to $AppDir..." -ForegroundColor Cyan
 New-Item -ItemType Directory -Force -Path $AppDir | Out-Null
 
 $sourceDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Copy-Item "$sourceDir\walldrop.py" $AppDir -Force
 
-# Unblock all files (removes the "downloaded from internet" flag = no SmartScreen)
-Get-ChildItem $AppDir | Unblock-File
-Write-Host "        Installed & unblocked." -ForegroundColor Green
+Write-Host "        Installed." -ForegroundColor Green
 
 # ── 3. Create Desktop Shortcut ───────────────────────────────────────────────
 Write-Host "  [3/4] Creating desktop shortcut..." -ForegroundColor Cyan
@@ -71,6 +69,6 @@ Start-Process $pythonFull -ArgumentList "`"$Script`"" -WorkingDirectory $AppDir
 
 Write-Host ""
 Write-Host "  ✓ Done! WallDrop is running." -ForegroundColor Green
-Write-Host "  Use the Desktop shortcut next time — no SmartScreen." -ForegroundColor DarkGray
+Write-Host "  Use the Desktop shortcut next time." -ForegroundColor DarkGray
 Write-Host ""
 Start-Sleep -Seconds 2

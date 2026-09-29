@@ -16,7 +16,7 @@ Automatically downloads and sets anime wallpapers from the internet.
 
 ## Quick Start
 
-1. Double-click **WallDrop.bat**
+1. Right-click **Install.ps1** and choose **Run with PowerShell**. The installer copies the app to `%LOCALAPPDATA%\WallDrop`, creates a Desktop shortcut, and launches it. Python 3 must already be installed.
 2. Choose your source (Wallhaven is free, no key needed)
 3. Type a search query like: `naruto`, `ghibli`, `cyberpunk anime`, `one piece`
 4. Pick resolution, sort, interval
@@ -38,6 +38,15 @@ Automatically downloads and sets anime wallpapers from the internet.
 - Sign up → get key → paste it in the app
 
 ---
+
+## Privacy and API keys
+
+The Alpha Coders API key is saved as **unencrypted plaintext** in
+`%APPDATA%\WallDrop\config.json` so it remains available between launches.
+When Alpha Coders is selected, the app sends the key to `api.alphacoders.com`
+over HTTPS as part of the API request URL. Avoid using this option on a
+shared Windows account or device; use Wallhaven if you do not want to store
+an API key. Deleting the WallDrop configuration folder removes the saved key.
 
 ## How Automation Works
 
