@@ -15,6 +15,7 @@ CACHE_DIR   = Path(os.environ.get("APPDATA", Path.home())) / "WallDrop" / "cache
 CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 TASK_NAME   = "WallDropOnline"
+CONFIG_WARNING = None
 
 # ── Wallhaven API (free, no key needed for SFW anime) ────────────────────────
 WALLHAVEN_SEARCH = "https://wallhaven.cc/api/v1/search"
@@ -31,11 +32,31 @@ ALPHACODERS_ANIME_CAT = "3"   # Anime category ID
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def load_config():
+    global CONFIG_WARNING
+    CONFIG_WARNING = None
     if CONFIG_FILE.exists():
         try:
-            return json.loads(CONFIG_FILE.read_text())
-        except Exception:
-            pass
+            config = json.loads(CONFIG_FILE.read_text())
+            if isinstance(config, dict):
+                return config
+            raise ValueError("Configuration must contain a JSON object.")
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+            backup = CONFIG_FILE.with_name(CONFIG_FILE.name + ".corrupt")
+            suffix = 1
+            while backup.exists():
+                backup = CONFIG_FILE.with_name(f"{CONFIG_FILE.name}.corrupt.{suffix}")
+                suffix += 1
+            try:
+                CONFIG_FILE.replace(backup)
+                CONFIG_WARNING = (
+                    f"The configuration file was invalid and has been preserved as "
+                    f"{backup}. Default settings will be used."
+                )
+            except OSError as backup_error:
+                CONFIG_WARNING = (
+                    f"The configuration file could not be read ({exc}) or preserved "
+                    f"({backup_error}). It will not be overwritten."
+                )
     return {
         "source":           "wallhaven",
         "wallhaven_query":  "anime",
@@ -49,6 +70,8 @@ def load_config():
     }
 
 def save_config(cfg):
+    if CONFIG_WARNING and CONFIG_FILE.exists():
+        raise OSError(CONFIG_WARNING)
     CONFIG_FILE.write_text(json.dumps(cfg, indent=2))
 
 def set_wallpaper(path: str) -> bool:
@@ -227,6 +250,12 @@ class WallDropApp:
         self.root.configure(bg=C["bg"])
         self.cfg = load_config()
         self._build()
+        if CONFIG_WARNING:
+            warning = CONFIG_WARNING
+            self.root.after(
+                0,
+                lambda: messagebox.showwarning("WallDrop Configuration", warning),
+            )
         self._refresh_status()
 
     def _section(self, parent, text, pady=(20, 6)):
@@ -396,10 +425,16 @@ class WallDropApp:
         self.cfg["alphacoders_key"]  = self.key_var.get().strip()
         self.cfg["interval_minutes"] = self.interval_var.get()
         self.cfg["resolution"]       = self.res_var.get()
-        save_config(self.cfg)
+        try:
+            save_config(self.cfg)
+        except OSError as exc:
+            messagebox.showerror("Configuration Error", str(exc))
+            return False
+        return True
 
     def _apply_now(self):
-        self._save_settings()
+        if not self._save_settings():
+            return
         self._set_status("Fetching wallpaper...", C["yellow"])
         def work():
             ok, result, url = apply_next_wallpaper(self.cfg)
@@ -407,14 +442,22 @@ class WallDropApp:
                 name = os.path.basename(result)
                 self._set_status(f"✓ Applied: {name}", C["green"])
                 src = "wallhaven.cc" if self.cfg["source"] == "wallhaven" else "alphacoders.com"
-                self.last_var.set(f"  Source: {src}  |  Page: {url[:80] if url else 'N/A'}")
+                self.root.after(
+                    0,
+                    lambda: self.last_var.set(
+                        f"  Source: {src}  |  Page: {url[:80] if url else 'N/A'}"
+                    ),
+                )
             else:
                 self._set_status(f"✗ {result}", C["red"])
-                self.root.after(0, lambda: messagebox.showerror("WallDrop Error", result))
+                self.root.after(
+                    0, lambda: messagebox.showerror("WallDrop Error", result)
+                )
         threading.Thread(target=work, daemon=True).start()
 
     def _enable_sched(self):
-        self._save_settings()
+        if not self._save_settings():
+            return
         interval = self.interval_var.get()
         ok, msg = register_task(interval)
         if ok:
@@ -436,7 +479,12 @@ class WallDropApp:
                 self._set_status("Scheduler not active. Click 'Enable Scheduler'.", C["muted"], dot=C["dim"])
             last = self.cfg.get("last_wallpaper", "")
             if last and os.path.exists(last):
-                self.last_var.set(f"  Last: {os.path.basename(last)}")
+                self.root.after(
+                    0,
+                    lambda: self.last_var.set(
+                        f"  Last: {os.path.basename(last)}"
+                    ),
+                )
         threading.Thread(target=check, daemon=True).start()
 
     def _set_status(self, msg, color=None, dot=None):
